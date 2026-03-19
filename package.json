@@ -1,0 +1,43 @@
+{
+  "name": "comfyui-ping",
+  "version": "1.0.0",
+  "description": "Browser-played workflow success and failure audio notifications for ComfyUI",
+  "type": "module",
+  "scripts": {
+    "dev": "tsc && vite build --watch",
+    "build": "tsc && vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "keywords": [
+    "comfyui",
+    "custom-node",
+    "workflow",
+    "notifications",
+    "audio",
+    "extension"
+  ],
+  "author": "pbanddev",
+  "license": "AGPL-3.0",
+  "homepage": "https://github.com/PBandDev/comfyui-ping",
+  "bugs": {
+    "url": "https://github.com/PBandDev/comfyui-ping/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/PBandDev/comfyui-ping.git"
+  },
+  "packageManager": "pnpm@10.17.1",
+  "dependencies": {
+    "typescript": "^5.9.3",
+    "vite": "^7.1.12"
+  },
+  "devDependencies": {
+    "@comfyorg/comfyui-frontend-types": "^1.32.1",
+    "@types/node": "^24.10.0",
+    "@vitest/coverage-v8": "^4.0.16",
+    "vitest": "^4.0.16"
+  }
+}

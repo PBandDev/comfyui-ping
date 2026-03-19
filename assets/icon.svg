@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" role="img" aria-labelledby="title desc">
+  <title id="title">comfyui-ping icon</title>
+  <desc id="desc">A warm notification bell with radiating ping rings.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10212f"/>
+      <stop offset="100%" stop-color="#1a4f63"/>
+    </linearGradient>
+    <linearGradient id="bell" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffd77a"/>
+      <stop offset="100%" stop-color="#ff9d3c"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="400" rx="88" fill="url(#bg)"/>
+  <circle cx="200" cy="200" r="126" fill="#0d3443" opacity="0.55"/>
+  <path
+    d="M200 92c-47 0-84 37-84 84v39c0 22-8 42-23 58l-10 10c-7 7-2 19 8 19h218c10 0 15-12 8-19l-10-10c-15-16-23-36-23-58v-39c0-47-37-84-84-84Z"
+    fill="url(#bell)"
+  />
+  <path
+    d="M164 310c7 22 24 34 36 34s29-12 36-34"
+    fill="none"
+    stroke="#ffeab5"
+    stroke-linecap="round"
+    stroke-width="18"
+  />
+  <circle cx="200" cy="84" r="18" fill="#ffe7a6"/>
+  <path
+    d="M303 130c21 15 35 40 38 68"
+    fill="none"
+    stroke="#83f0ff"
+    stroke-linecap="round"
+    stroke-width="16"
+  />
+  <path
+    d="M321 90c30 22 49 57 53 96"
+    fill="none"
+    stroke="#83f0ff"
+    stroke-linecap="round"
+    stroke-width="12"
+    opacity="0.72"
+  />
+  <path
+    d="M97 130c-21 15-35 40-38 68"
+    fill="none"
+    stroke="#83f0ff"
+    stroke-linecap="round"
+    stroke-width="16"
+  />
+  <path
+    d="M79 90c-30 22-49 57-53 96"
+    fill="none"
+    stroke="#83f0ff"
+    stroke-linecap="round"
+    stroke-width="12"
+    opacity="0.72"
+  />
+</svg>
