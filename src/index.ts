@@ -30,13 +30,9 @@ type PingSettingRenderer = (
   name: string,
   setter: (value: unknown) => void,
   value: unknown,
-  attrs?: Record<string, unknown>
+  attrs?: Record<string, unknown>,
 ) => HTMLElement;
-type PingSettingType =
-  | "boolean"
-  | "slider"
-  | "combo"
-  | PingSettingRenderer;
+type PingSettingType = "boolean" | "slider" | "combo" | PingSettingRenderer;
 
 interface PingSettingOption {
   text: string;
@@ -52,13 +48,16 @@ interface PingSetting {
   tooltip?: string;
   attrs?: Record<string, number>;
   options?: PingSettingOption[];
+  sortOrder?: number;
 }
 
 interface PingAppApi extends FetchApiClient {
   addEventListener: (
     eventName: string,
-    listener: (event: { detail: NotificationEventDetail }) => void
+    listener: (event: { detail: NotificationEventDetail }) => void,
   ) => void;
+  dispatchEvent?: (event: Event) => boolean;
+  queuePrompt?: (...args: unknown[]) => Promise<unknown>;
 }
 
 interface PingAppLike {
@@ -70,7 +69,10 @@ interface PingAppLike {
       settingsLookup?: Record<
         string,
         {
-          onChange?: (newValue: unknown, oldValue?: unknown) => void | Promise<void>;
+          onChange?: (
+            newValue: unknown,
+            oldValue?: unknown,
+          ) => void | Promise<void>;
         }
       >;
     };
@@ -97,15 +99,18 @@ const DEFAULT_SOUND_CATALOG: SoundCatalogPayload = {
 
 export const PING_SETTINGS_IDS = {
   VERSION: SETTINGS_IDS.VERSION,
-  DEBUG_LOGGING: SETTINGS_IDS.DEBUG_LOGGING,
-  GLOBAL_ENABLED: `${SETTINGS_PREFIX}.Notifications Enabled`,
-  NOTIFY_MODE: `${SETTINGS_PREFIX}.Notify Mode`,
-  SUCCESS_ENABLED: `${SETTINGS_PREFIX}.Success Enabled`,
-  FAILURE_ENABLED: `${SETTINGS_PREFIX}.Failure Enabled`,
+  SECTION_NOTIFICATIONS: `${SETTINGS_PREFIX}.Notifications`,
+  GLOBAL_ENABLED: `${SETTINGS_PREFIX}.Enable Workflow Notifications`,
+  NOTIFY_MODE: `${SETTINGS_PREFIX}.Global Notify Mode`,
+  SUCCESS_ENABLED: `${SETTINGS_PREFIX}.Notify On Success`,
+  FAILURE_ENABLED: `${SETTINGS_PREFIX}.Notify On Failure`,
+  SECTION_SOUNDS: `${SETTINGS_PREFIX}.Sounds`,
   SUCCESS_SOUND: `${SETTINGS_PREFIX}.Success Sound`,
   FAILURE_SOUND: `${SETTINGS_PREFIX}.Failure Sound`,
-  UPLOAD_ACTION: `${SETTINGS_PREFIX}.Upload Action`,
-  VOLUME: `${SETTINGS_PREFIX}.Volume`,
+  VOLUME: `${SETTINGS_PREFIX}.Notification Volume`,
+  UPLOAD_ACTION: `${SETTINGS_PREFIX}.Upload Custom Sound`,
+  SECTION_ADVANCED: `${SETTINGS_PREFIX}.Advanced`,
+  DEBUG_LOGGING: SETTINGS_IDS.DEBUG_LOGGING,
 } as const;
 
 export const PING_NOTIFY_MODES: PingSettingOption[] = [
@@ -131,9 +136,29 @@ function createHomepageRenderer(): HTMLSpanElement {
   return spanEl;
 }
 
+function createSectionRenderer(description?: string): PingSettingRenderer {
+  return (_name: string) => {
+    const wrapperEl = document.createElement("div");
+    wrapperEl.style.display = "flex";
+    wrapperEl.style.flexDirection = "column";
+    wrapperEl.style.gap = "2px";
+    wrapperEl.style.paddingTop = "8px";
+
+    if (description) {
+      const descriptionEl = document.createElement("div");
+      descriptionEl.textContent = description;
+      descriptionEl.style.fontSize = "0.75rem";
+      descriptionEl.style.opacity = "0.7";
+      wrapperEl.append(descriptionEl);
+    }
+
+    return wrapperEl;
+  };
+}
+
 function coerceSettingString(
   value: unknown,
-  fallbackValue: SoundOptionId
+  fallbackValue: SoundOptionId,
 ): string {
   return typeof value === "string" && value.length > 0 ? value : fallbackValue;
 }
@@ -151,7 +176,7 @@ function coerceSettingVolume(value: unknown, fallbackValue: number): number {
 }
 
 export function buildSoundSettingOptions(
-  catalog: SoundCatalogPayload
+  catalog: SoundCatalogPayload,
 ): PingSettingOption[] {
   return catalog.sounds.map((entry) => ({
     text: `${entry.source === "bundled" ? "Bundled" : "Custom"} / ${entry.name}`,
@@ -162,7 +187,8 @@ export function buildSoundSettingOptions(
 function buildUnavailableSoundOption(soundId: string): PingSettingOption {
   const separatorIndex = soundId.indexOf(":");
   const source = separatorIndex === -1 ? "" : soundId.slice(0, separatorIndex);
-  const name = separatorIndex === -1 ? soundId : soundId.slice(separatorIndex + 1);
+  const name =
+    separatorIndex === -1 ? soundId : soundId.slice(separatorIndex + 1);
   const sourceLabel =
     source === "custom" ? "Custom" : source === "bundled" ? "Bundled" : "Sound";
 
@@ -174,7 +200,7 @@ function buildUnavailableSoundOption(soundId: string): PingSettingOption {
 
 export function buildRenderedSoundOptions(
   options: PingSettingOption[],
-  selectedValue: string
+  selectedValue: string,
 ): PingSettingOption[] {
   if (selectedValue.length === 0) {
     return options;
@@ -197,7 +223,7 @@ const soundCatalogSubscribers = new Set<
 >();
 
 function subscribeToSoundCatalog(
-  listener: (catalog: SoundCatalogPayload) => void
+  listener: (catalog: SoundCatalogPayload) => void,
 ): () => void {
   soundCatalogSubscribers.add(listener);
   listener(currentSoundCatalog);
@@ -213,7 +239,7 @@ function notifySoundCatalogSubscribers(): void {
 }
 
 export function applySoundCatalogToSettings(
-  catalog: SoundCatalogPayload
+  catalog: SoundCatalogPayload,
 ): SoundCatalogPayload {
   currentSoundCatalog = catalog;
   const options = buildSoundSettingOptions(catalog);
@@ -235,7 +261,7 @@ export function applySoundCatalogToSettings(
 function populateSoundSelect(
   selectEl: HTMLSelectElement,
   options: PingSettingOption[],
-  selectedValue: string
+  selectedValue: string,
 ): void {
   const renderedOptions = buildRenderedSoundOptions(options, selectedValue);
   selectEl.replaceChildren();
@@ -257,7 +283,7 @@ function populateSoundSelect(
 
 function createSoundSelectRenderer(
   settingId: string,
-  fallbackValue: SoundOptionId
+  fallbackValue: SoundOptionId,
 ): PingSettingRenderer {
   return (name: string, setter: (value: unknown) => void, value: unknown) => {
     const wrapperEl = document.createElement("label");
@@ -278,7 +304,10 @@ function createSoundSelectRenderer(
       const runtimeApp = getRuntimeApp();
       const settingsUi = runtimeApp?.ui?.settings;
       const nextValue = selectEl.value;
-      const previousValue = settingsUi?.getSettingValue(settingId, fallbackValue);
+      const previousValue = settingsUi?.getSettingValue(
+        settingId,
+        fallbackValue,
+      );
 
       setter(nextValue);
 
@@ -295,7 +324,7 @@ function createSoundSelectRenderer(
 
       void previewSoundSelection(
         runtimeApp,
-        selectEl.value || coerceSettingString(value, fallbackValue)
+        selectEl.value || coerceSettingString(value, fallbackValue),
       );
     });
 
@@ -305,7 +334,7 @@ function createSoundSelectRenderer(
       populateSoundSelect(
         selectEl,
         buildSoundSettingOptions(catalog),
-        selectedValue
+        selectedValue,
       );
     });
 
@@ -316,7 +345,7 @@ function createSoundSelectRenderer(
 }
 
 export async function refreshSoundCatalog(
-  comfyApp: PingAppLike
+  comfyApp: PingAppLike,
 ): Promise<SoundCatalogPayload | null> {
   if (!comfyApp.api) {
     return null;
@@ -327,7 +356,7 @@ export async function refreshSoundCatalog(
 
 export async function uploadCustomSound(
   comfyApp: PingAppLike,
-  file: File
+  file: File,
 ): Promise<SoundCatalogPayload | null> {
   if (!comfyApp.api) {
     return null;
@@ -337,7 +366,7 @@ export async function uploadCustomSound(
 }
 
 export function readRuntimeNotificationSettings(
-  comfyApp: PingAppLike
+  comfyApp: PingAppLike,
 ): RuntimeNotificationSettings | null {
   const settingsUi = comfyApp.ui?.settings;
   if (!settingsUi) {
@@ -347,46 +376,46 @@ export function readRuntimeNotificationSettings(
   return {
     enabled: coerceSettingBoolean(
       settingsUi.getSettingValue(PING_SETTINGS_IDS.GLOBAL_ENABLED, true),
-      true
+      true,
     ),
     failure_enabled: coerceSettingBoolean(
       settingsUi.getSettingValue(PING_SETTINGS_IDS.FAILURE_ENABLED, true),
-      true
+      true,
     ),
     failure_sound: coerceSettingString(
       settingsUi.getSettingValue(
         PING_SETTINGS_IDS.FAILURE_SOUND,
-        DEFAULT_FAILURE_SOUND_ID
+        DEFAULT_FAILURE_SOUND_ID,
       ),
-      DEFAULT_FAILURE_SOUND_ID
+      DEFAULT_FAILURE_SOUND_ID,
     ),
     notify_mode:
       settingsUi.getSettingValue(
         PING_SETTINGS_IDS.NOTIFY_MODE,
-        "queue_drained"
+        "queue_drained",
       ) === "every_prompt"
         ? "every_prompt"
         : "queue_drained",
     success_enabled: coerceSettingBoolean(
       settingsUi.getSettingValue(PING_SETTINGS_IDS.SUCCESS_ENABLED, true),
-      true
+      true,
     ),
     success_sound: coerceSettingString(
       settingsUi.getSettingValue(
         PING_SETTINGS_IDS.SUCCESS_SOUND,
-        DEFAULT_SUCCESS_SOUND_ID
+        DEFAULT_SUCCESS_SOUND_ID,
       ),
-      DEFAULT_SUCCESS_SOUND_ID
+      DEFAULT_SUCCESS_SOUND_ID,
     ),
     volume: coerceSettingVolume(
       settingsUi.getSettingValue(PING_SETTINGS_IDS.VOLUME, 0.8),
-      0.8
+      0.8,
     ),
   };
 }
 
 export async function syncRuntimeSettings(
-  comfyApp: PingAppLike
+  comfyApp: PingAppLike,
 ): Promise<RuntimeNotificationSettings | null> {
   if (!comfyApp.api) {
     return null;
@@ -403,7 +432,7 @@ export async function syncRuntimeSettings(
 async function previewSoundSelection(
   comfyApp: PingAppLike,
   soundId: string,
-  logger: PingLogger = getLogger()
+  logger: PingLogger = getLogger(),
 ): Promise<void> {
   const settingsUi = comfyApp.ui?.settings;
   if (!settingsUi) {
@@ -421,7 +450,7 @@ async function previewSoundSelection(
       status: "success",
       volume: coerceSettingVolume(
         settingsUi.getSettingValue(PING_SETTINGS_IDS.VOLUME, 0.8),
-        0.8
+        0.8,
       ),
     },
     logger,
@@ -432,7 +461,7 @@ async function previewSoundSelection(
 
 async function trySyncRuntimeSettings(
   comfyApp: PingAppLike,
-  logger: PingLogger = getLogger()
+  logger: PingLogger = getLogger(),
 ): Promise<RuntimeNotificationSettings | null> {
   try {
     return await syncRuntimeSettings(comfyApp);
@@ -440,7 +469,7 @@ async function trySyncRuntimeSettings(
     logger.warn(
       `Unable to sync runtime settings: ${
         error instanceof Error ? error.message : String(error)
-      }`
+      }`,
     );
     return null;
   }
@@ -449,7 +478,7 @@ async function trySyncRuntimeSettings(
 export async function tryUploadCustomSound(
   comfyApp: PingAppLike,
   file: File,
-  logger: PingLogger = getLogger()
+  logger: PingLogger = getLogger(),
 ): Promise<SoundCatalogPayload | null> {
   try {
     return await uploadCustomSound(comfyApp, file);
@@ -457,19 +486,19 @@ export async function tryUploadCustomSound(
     logger.warn(
       `Unable to upload custom sound: ${
         error instanceof Error ? error.message : String(error)
-      }`
+      }`,
     );
     return null;
   }
 }
 
 function getRuntimeApp(): PingAppLike | null {
-  return typeof app === "undefined" ? null : (app as PingAppLike);
+  return typeof app === "undefined" ? null : (app as unknown as PingAppLike);
 }
 
 function createSettingsSyncOnChange(): (
   newValue: unknown,
-  oldValue?: unknown
+  oldValue?: unknown,
 ) => void {
   return () => {
     const runtimeApp = getRuntimeApp();
@@ -504,7 +533,7 @@ function createUploadActionRenderer(): HTMLButtonElement {
 
         void tryUploadCustomSound(runtimeApp, file);
       },
-      { once: true }
+      { once: true },
     );
     inputEl.click();
   });
@@ -517,13 +546,14 @@ export const PING_SETTINGS: PingSetting[] = [
     name: "Version 1.0.1",
     type: createHomepageRenderer,
     defaultValue: undefined,
+    sortOrder: 12,
   },
   {
-    id: PING_SETTINGS_IDS.DEBUG_LOGGING,
-    name: "Enable Debug Logging",
-    type: "boolean",
-    tooltip: "Show detailed debug logs in browser console during operation",
-    defaultValue: false,
+    id: PING_SETTINGS_IDS.SECTION_NOTIFICATIONS,
+    name: "Notifications",
+    type: createSectionRenderer("Global workflow completion behavior."),
+    defaultValue: undefined,
+    sortOrder: 11,
   },
   {
     id: PING_SETTINGS_IDS.GLOBAL_ENABLED,
@@ -531,6 +561,7 @@ export const PING_SETTINGS: PingSetting[] = [
     type: "boolean",
     defaultValue: true,
     onChange: createSettingsSyncOnChange(),
+    sortOrder: 10,
   },
   {
     id: PING_SETTINGS_IDS.NOTIFY_MODE,
@@ -539,6 +570,7 @@ export const PING_SETTINGS: PingSetting[] = [
     defaultValue: "queue_drained" satisfies PingNotifyMode,
     options: PING_NOTIFY_MODES,
     onChange: createSettingsSyncOnChange(),
+    sortOrder: 9,
   },
   {
     id: PING_SETTINGS_IDS.SUCCESS_ENABLED,
@@ -546,6 +578,7 @@ export const PING_SETTINGS: PingSetting[] = [
     type: "boolean",
     defaultValue: true,
     onChange: createSettingsSyncOnChange(),
+    sortOrder: 8,
   },
   {
     id: PING_SETTINGS_IDS.FAILURE_ENABLED,
@@ -553,35 +586,40 @@ export const PING_SETTINGS: PingSetting[] = [
     type: "boolean",
     defaultValue: true,
     onChange: createSettingsSyncOnChange(),
+    sortOrder: 7,
+  },
+  {
+    id: PING_SETTINGS_IDS.SECTION_SOUNDS,
+    name: "Sounds",
+    type: createSectionRenderer(
+      "Choose, preview, and upload notification sounds.",
+    ),
+    defaultValue: undefined,
+    sortOrder: 6,
   },
   {
     id: PING_SETTINGS_IDS.SUCCESS_SOUND,
     name: "Success Sound",
     type: createSoundSelectRenderer(
       PING_SETTINGS_IDS.SUCCESS_SOUND,
-      DEFAULT_SUCCESS_SOUND_ID
+      DEFAULT_SUCCESS_SOUND_ID,
     ),
     defaultValue: DEFAULT_SUCCESS_SOUND_ID,
     options: buildSoundSettingOptions(DEFAULT_SOUND_CATALOG),
     onChange: createSettingsSyncOnChange(),
+    sortOrder: 5,
   },
   {
     id: PING_SETTINGS_IDS.FAILURE_SOUND,
     name: "Failure Sound",
     type: createSoundSelectRenderer(
       PING_SETTINGS_IDS.FAILURE_SOUND,
-      DEFAULT_FAILURE_SOUND_ID
+      DEFAULT_FAILURE_SOUND_ID,
     ),
     defaultValue: DEFAULT_FAILURE_SOUND_ID,
     options: buildSoundSettingOptions(DEFAULT_SOUND_CATALOG),
     onChange: createSettingsSyncOnChange(),
-  },
-  {
-    id: PING_SETTINGS_IDS.UPLOAD_ACTION,
-    name: "Upload Custom Sound",
-    type: createUploadActionRenderer,
-    defaultValue: undefined,
-    tooltip: "Upload a custom browser-played notification sound.",
+    sortOrder: 4,
   },
   {
     id: PING_SETTINGS_IDS.VOLUME,
@@ -594,11 +632,36 @@ export const PING_SETTINGS: PingSetting[] = [
       max: 1,
       step: 0.05,
     },
+    sortOrder: 3,
+  },
+  {
+    id: PING_SETTINGS_IDS.UPLOAD_ACTION,
+    name: "Upload Custom Sound",
+    type: createUploadActionRenderer,
+    defaultValue: undefined,
+    tooltip: "Upload a custom browser-played notification sound.",
+    sortOrder: 2,
+  },
+  {
+    id: PING_SETTINGS_IDS.SECTION_ADVANCED,
+    name: "Advanced",
+    type: createSectionRenderer("Diagnostics and development-only controls."),
+    defaultValue: undefined,
+    sortOrder: 1,
+  },
+  {
+    id: PING_SETTINGS_IDS.DEBUG_LOGGING,
+    name: "Enable Debug Logging",
+    type: "boolean",
+    tooltip: "Show detailed debug logs in browser console during operation",
+    defaultValue: false,
+    sortOrder: 0,
   },
 ];
 
 let currentNotificationAudio: ManagedAudio | null = null;
 let subscribedNotificationApi: PingAppApi | null = null;
+let subscribedQueuePromptApi: PingAppApi | null = null;
 
 function createBrowserAudio(audioUrl: string): HTMLAudioElement {
   return new Audio(audioUrl);
@@ -612,9 +675,7 @@ function getLogger(): PingLogger {
   };
 }
 
-export function subscribeToPingNotificationEvents(
-  comfyApp: PingAppLike
-): void {
+export function subscribeToPingNotificationEvents(comfyApp: PingAppLike): void {
   if (!comfyApp.api || subscribedNotificationApi === comfyApp.api) {
     return;
   }
@@ -633,24 +694,105 @@ export function subscribeToPingNotificationEvents(
   });
 }
 
+function extractQueuePromptErrorType(error: unknown): string | null {
+  if (typeof error !== "object" || error === null || !("response" in error)) {
+    return null;
+  }
+
+  const response = error.response;
+  if (
+    typeof response !== "object" ||
+    response === null ||
+    !("error" in response)
+  ) {
+    return null;
+  }
+
+  const responseError = response.error;
+  if (
+    typeof responseError !== "object" ||
+    responseError === null ||
+    !("type" in responseError)
+  ) {
+    return null;
+  }
+
+  return typeof responseError.type === "string" && responseError.type.length > 0
+    ? responseError.type
+    : null;
+}
+
+function buildQueuePromptFailureDetail(
+  comfyApp: PingAppLike,
+  error: unknown,
+): NotificationEventDetail | null {
+  const errorType = extractQueuePromptErrorType(error);
+  if (!errorType) {
+    return null;
+  }
+
+  const settings = readRuntimeNotificationSettings(comfyApp);
+  if (!settings || !settings.enabled || !settings.failure_enabled) {
+    return null;
+  }
+
+  return {
+    event_kind: "queue_error",
+    source: errorType,
+    sound_id: settings.failure_sound,
+    status: "failure",
+    volume: settings.volume,
+  };
+}
+
+export function subscribeToQueuePromptFailureNotifications(
+  comfyApp: PingAppLike,
+): void {
+  if (
+    !comfyApp.api ||
+    subscribedQueuePromptApi === comfyApp.api ||
+    typeof comfyApp.api.queuePrompt !== "function"
+  ) {
+    return;
+  }
+
+  const api = comfyApp.api;
+  const originalQueuePrompt = api.queuePrompt as (
+    ...args: unknown[]
+  ) => Promise<unknown>;
+  api.queuePrompt = async (...args: unknown[]) => {
+    try {
+      return await originalQueuePrompt.apply(api, args);
+    } catch (error) {
+      const detail = buildQueuePromptFailureDetail(comfyApp, error);
+      if (detail && typeof api.dispatchEvent === "function") {
+        api.dispatchEvent(new CustomEvent(PING_EVENT_NAME, { detail }));
+      }
+      throw error;
+    }
+  };
+  subscribedQueuePromptApi = api;
+}
+
 export const PING_EXTENSION = {
   name: "comfyui-ping",
   settings: PING_SETTINGS,
   async setup() {
     if (typeof app !== "undefined") {
       try {
-        await refreshSoundCatalog(app as PingAppLike);
+        await refreshSoundCatalog(app as unknown as PingAppLike);
       } catch (error) {
         getLogger().warn(
           `Unable to refresh sound catalog: ${
             error instanceof Error ? error.message : String(error)
-          }`
+          }`,
         );
       }
 
-      await trySyncRuntimeSettings(app as PingAppLike);
+      await trySyncRuntimeSettings(app as unknown as PingAppLike);
 
-      subscribeToPingNotificationEvents(app as PingAppLike);
+      subscribeToPingNotificationEvents(app as unknown as PingAppLike);
+      subscribeToQueuePromptFailureNotifications(app as unknown as PingAppLike);
     }
   },
 };

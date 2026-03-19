@@ -10,6 +10,7 @@ import {
   PING_SETTINGS_IDS,
   syncRuntimeSettings,
   refreshSoundCatalog,
+  subscribeToQueuePromptFailureNotifications,
   tryUploadCustomSound,
 } from "../src/index";
 
@@ -111,6 +112,44 @@ class FakeDocument {
 }
 
 describe("PING_SETTINGS", () => {
+  it("orders settings into version, notifications, sounds, and advanced flows", () => {
+    expect(
+      PING_SETTINGS.map((setting) => setting.name)
+    ).toEqual([
+      "Version 1.0.1",
+      "Notifications",
+      "Enable Workflow Notifications",
+      "Global Notify Mode",
+      "Notify On Success",
+      "Notify On Failure",
+      "Sounds",
+      "Success Sound",
+      "Failure Sound",
+      "Notification Volume",
+      "Upload Custom Sound",
+      "Advanced",
+      "Enable Debug Logging",
+    ]);
+  });
+
+  it("assigns explicit sortOrder values for the intended layout", () => {
+    expect(PING_SETTINGS.map((setting) => setting.sortOrder)).toEqual([
+      12,
+      11,
+      10,
+      9,
+      8,
+      7,
+      6,
+      5,
+      4,
+      3,
+      2,
+      1,
+      0,
+    ]);
+  });
+
   it("includes the expected notification settings", () => {
     const settingIds = PING_SETTINGS.map((setting) => setting.id);
 
@@ -478,5 +517,120 @@ describe("PING_SETTINGS", () => {
     );
 
     vi.unstubAllGlobals();
+  });
+
+  it("dispatches a failure notification when queuePrompt rejects with a prompt error", async () => {
+    const dispatchEvent = vi.fn();
+    const queuePrompt = vi.fn(async (..._args: unknown[]) => {
+      const error = new Error("Prompt execution failed") as Error & {
+        response?: {
+          error?: {
+            message?: string;
+            type?: string;
+          };
+        };
+      };
+      error.response = {
+        error: {
+          type: "prompt_no_outputs",
+          message: "Prompt has no outputs",
+        },
+      };
+      throw error;
+    });
+
+    const comfyApp = {
+      api: {
+        addEventListener: vi.fn(),
+        dispatchEvent,
+        fetchApi: vi.fn(),
+        queuePrompt,
+      },
+      ui: {
+        settings: {
+          getSettingValue: (id: string, defaultValue?: unknown) => {
+            if (id === PING_SETTINGS_IDS.GLOBAL_ENABLED) {
+              return true;
+            }
+            if (id === PING_SETTINGS_IDS.FAILURE_ENABLED) {
+              return true;
+            }
+            if (id === PING_SETTINGS_IDS.FAILURE_SOUND) {
+              return "bundled:ping-failure.wav";
+            }
+            if (id === PING_SETTINGS_IDS.VOLUME) {
+              return 0.45;
+            }
+            return defaultValue;
+          },
+        },
+      },
+    };
+
+    subscribeToQueuePromptFailureNotifications(comfyApp);
+
+    await expect(comfyApp.api.queuePrompt(0, {})).rejects.toThrow(
+      "Prompt execution failed"
+    );
+
+    expect(dispatchEvent).toHaveBeenCalledTimes(1);
+    const event = dispatchEvent.mock.calls[0]?.[0] as CustomEvent | undefined;
+    expect(event?.type).toBe(PING_EVENT_NAME);
+    expect(event?.detail).toEqual({
+      event_kind: "queue_error",
+      sound_id: "bundled:ping-failure.wav",
+      source: "prompt_no_outputs",
+      status: "failure",
+      volume: 0.45,
+    });
+  });
+
+  it("does not dispatch a failure notification when failure notifications are disabled", async () => {
+    const dispatchEvent = vi.fn();
+    const queuePrompt = vi.fn(async (..._args: unknown[]) => {
+      const error = new Error("Prompt execution failed") as Error & {
+        response?: {
+          error?: {
+            type?: string;
+          };
+        };
+      };
+      error.response = {
+        error: {
+          type: "prompt_no_outputs",
+        },
+      };
+      throw error;
+    });
+
+    const comfyApp = {
+      api: {
+        addEventListener: vi.fn(),
+        dispatchEvent,
+        fetchApi: vi.fn(),
+        queuePrompt,
+      },
+      ui: {
+        settings: {
+          getSettingValue: (id: string, defaultValue?: unknown) => {
+            if (id === PING_SETTINGS_IDS.GLOBAL_ENABLED) {
+              return true;
+            }
+            if (id === PING_SETTINGS_IDS.FAILURE_ENABLED) {
+              return false;
+            }
+            return defaultValue;
+          },
+        },
+      },
+    };
+
+    subscribeToQueuePromptFailureNotifications(comfyApp);
+
+    await expect(comfyApp.api.queuePrompt(0, {})).rejects.toThrow(
+      "Prompt execution failed"
+    );
+
+    expect(dispatchEvent).not.toHaveBeenCalled();
   });
 });

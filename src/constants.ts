@@ -6,5 +6,5 @@ export const SOUND_SOURCES = {
 } as const;
 export const SETTINGS_IDS = {
   VERSION: `${SETTINGS_PREFIX}.Version`,
-  DEBUG_LOGGING: `${SETTINGS_PREFIX}.Debug Logging`,
+  DEBUG_LOGGING: `${SETTINGS_PREFIX}.Enable Debug Logging`,
 };
