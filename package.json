@@ -1,6 +1,6 @@
 {
   "name": "comfyui-ping",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Browser-played workflow success and failure audio notifications for ComfyUI",
   "type": "module",
   "scripts": {
