@@ -543,7 +543,7 @@ function createUploadActionRenderer(): HTMLButtonElement {
 export const PING_SETTINGS: PingSetting[] = [
   {
     id: PING_SETTINGS_IDS.VERSION,
-    name: "Version 1.0.1",
+    name: "Version 1.0.2",
     type: createHomepageRenderer,
     defaultValue: undefined,
     sortOrder: 12,
