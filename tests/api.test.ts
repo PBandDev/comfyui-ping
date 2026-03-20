@@ -5,6 +5,7 @@ import {
   buildSettingsRoute,
   buildSoundUploadRoute,
   fetchSoundCatalog,
+  normalizeSoundOptionId,
   parseSoundCatalogPayload,
   parseSoundOptionId,
   storeRuntimeSettings,
@@ -13,26 +14,22 @@ import {
 } from "../src/api";
 
 describe("sound API helpers", () => {
-  it("creates a stable option id from a source-aware catalog entry", () => {
+  it("creates a stable option id from a flat catalog entry", () => {
     const entry: SoundCatalogEntry = {
       name: "ping-success.wav",
-      source: "bundled",
     };
 
-    expect(toSoundOptionId(entry)).toBe("bundled:ping-success.wav");
+    expect(toSoundOptionId(entry)).toBe("ping-success.wav");
   });
 
-  it("parses an option id back into a source-aware entry", () => {
+  it("normalizes a legacy prefixed option id into a flat entry", () => {
     expect(parseSoundOptionId("custom:my-sound.wav")).toEqual({
       name: "my-sound.wav",
-      source: "custom",
     });
   });
 
-  it("rejects unsupported sound sources", () => {
-    expect(() => parseSoundOptionId("unknown:my-sound.wav")).toThrow(
-      "Unsupported sound source: unknown"
-    );
+  it("leaves plain option ids unchanged when normalizing", () => {
+    expect(normalizeSoundOptionId("my-sound.wav")).toBe("my-sound.wav");
   });
 
   it("builds the real backend routes for catalog, file, and upload requests", () => {
@@ -42,18 +39,17 @@ describe("sound API helpers", () => {
     expect(
       buildSoundFileRoute({
         name: "my sound.wav",
-        source: "custom",
       })
-    ).toBe("/comfyui-ping/sounds/custom/my%20sound.wav");
+    ).toBe("/comfyui-ping/sounds/my%20sound.wav");
   });
 
-  it("parses the source-aware catalog payload", () => {
+  it("parses the flat catalog payload", () => {
     expect(
       parseSoundCatalogPayload({
-        sounds: [{ name: "custom.wav", source: "custom" }],
+        sounds: [{ name: "custom.wav" }],
       })
     ).toEqual({
-      sounds: [{ name: "custom.wav", source: "custom" }],
+      sounds: [{ name: "custom.wav" }],
     });
   });
 
@@ -61,7 +57,7 @@ describe("sound API helpers", () => {
     const fetchApi = async (): Promise<Response> =>
       new Response(
         JSON.stringify({
-          sounds: [{ name: "uploaded.wav", source: "custom" }],
+          sounds: [{ name: "uploaded.wav" }],
         }),
         {
           status: 200,
@@ -70,7 +66,7 @@ describe("sound API helpers", () => {
       );
 
     await expect(fetchSoundCatalog({ fetchApi })).resolves.toEqual({
-      sounds: [{ name: "uploaded.wav", source: "custom" }],
+      sounds: [{ name: "uploaded.wav" }],
     });
   });
 
@@ -78,10 +74,10 @@ describe("sound API helpers", () => {
     const settings = {
       enabled: true,
       failure_enabled: false,
-      failure_sound: "bundled:ping-failure.wav",
+      failure_sound: "ping-failure.wav",
       notify_mode: "queue_drained",
       success_enabled: true,
-      success_sound: "custom:uploaded.wav",
+      success_sound: "uploaded.wav",
       volume: 0.45,
     } as const;
 

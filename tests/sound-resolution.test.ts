@@ -9,7 +9,7 @@ describe("resolveSoundSelection", () => {
         nodeOverrides: { successSound: "bundled:node.wav" },
         globalSettings: { successSound: "bundled:global.wav" },
       })
-    ).toBe("bundled:node.wav");
+    ).toBe("node.wav");
   });
 
   it("falls back to the matching global sound", () => {
@@ -19,7 +19,7 @@ describe("resolveSoundSelection", () => {
         nodeOverrides: {},
         globalSettings: { failureSound: "custom:failure.wav" },
       })
-    ).toBe("custom:failure.wav");
+    ).toBe("failure.wav");
   });
 
   it("returns null when no matching sound is configured", () => {

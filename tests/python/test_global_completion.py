@@ -53,7 +53,7 @@ def test_build_global_completion_payload_uses_global_event_kind():
 
     assert payload.event_kind == "global"
     assert payload.status == "failure"
-    assert payload.sound_id == "bundled:global-failure.wav"
+    assert payload.sound_id == "global-failure.wav"
 
 
 def test_resolve_global_completion_payload_normalizes_error_status():
@@ -73,7 +73,7 @@ def test_resolve_global_completion_payload_normalizes_error_status():
 
     assert payload is not None
     assert payload.status == "failure"
-    assert payload.sound_id == "custom:uploaded.wav"
+    assert payload.sound_id == "uploaded.wav"
     assert payload.volume == 0.45
 
 
@@ -131,7 +131,7 @@ def test_reinstall_updates_callbacks_after_noop_install():
     assert result == "done"
     assert emitted_payloads[0].event_kind == "global"
     assert emitted_payloads[0].status == "success"
-    assert emitted_payloads[0].sound_id == "bundled:global-success.wav"
+    assert emitted_payloads[0].sound_id == "global-success.wav"
     assert emitted_payloads[0].volume == 0.65
     assert len(emitted_payloads) == 1
 

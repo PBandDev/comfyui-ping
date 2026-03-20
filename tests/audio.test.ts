@@ -6,50 +6,45 @@ import {
 } from "../src/audio";
 
 describe("shouldPlayNotification", () => {
-  it("returns false when selected custom sound is invalid", () => {
+  it("returns false when the selected sound is unavailable", () => {
     expect(
       shouldPlayNotification({
-        selectedSound: "custom:missing.wav",
+        selectedSound: "missing.wav",
         soundExists: false,
-        isCustom: true,
       })
     ).toBe(false);
   });
 
-  it("returns true for bundled sounds when a selection exists", () => {
+  it("returns true when a selected sound exists", () => {
     expect(
       shouldPlayNotification({
-        selectedSound: "bundled:ping-success.wav",
+        selectedSound: "ping-success.wav",
         soundExists: true,
-        isCustom: false,
       })
     ).toBe(true);
   });
 });
 
 describe("playNotification", () => {
-  it("warns and plays nothing for an invalid custom sound", async () => {
+  it("warns and plays nothing for an invalid selected sound", async () => {
     const warn = vi.fn();
     const createAudio = vi.fn();
 
     const result = await playNotification({
       audioUrl: "unused",
       createAudio,
-      isCustom: true,
       logger: { warn },
-      selectedSound: "custom:missing.wav",
+      selectedSound: "missing.wav",
       soundExists: false,
       volume: 0.7,
     });
 
     expect(result.played).toBe(false);
     expect(createAudio).not.toHaveBeenCalled();
-    expect(warn).toHaveBeenCalledWith(
-      expect.stringContaining("custom sound")
-    );
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("Selected sound"));
   });
 
-  it("clears stale current audio for an invalid custom sound", async () => {
+  it("clears stale current audio for an invalid selected sound", async () => {
     const pause = vi.fn();
     const warn = vi.fn();
     const currentAudio = {
@@ -63,9 +58,8 @@ describe("playNotification", () => {
       audioUrl: "unused",
       createAudio: vi.fn(),
       currentAudio,
-      isCustom: true,
       logger: { warn },
-      selectedSound: "custom:missing.wav",
+      selectedSound: "missing.wav",
       soundExists: false,
       volume: 0.7,
     });
@@ -74,9 +68,7 @@ describe("playNotification", () => {
     expect(currentAudio.currentTime).toBe(0);
     expect(result.played).toBe(false);
     expect(result.audio).toBeNull();
-    expect(warn).toHaveBeenCalledWith(
-      expect.stringContaining("custom sound")
-    );
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("Selected sound"));
   });
 
   it("stops the previous audio before playing a new sound", async () => {
@@ -100,8 +92,7 @@ describe("playNotification", () => {
       audioUrl: "memory://ping-success",
       createAudio,
       currentAudio,
-      isCustom: false,
-      selectedSound: "bundled:ping-success.wav",
+      selectedSound: "ping-success.wav",
       soundExists: true,
       stopPrevious: true,
       volume: 0.4,
@@ -136,9 +127,8 @@ describe("playNotification", () => {
       audioUrl: "memory://ping-failure",
       createAudio: vi.fn(() => nextAudio),
       currentAudio,
-      isCustom: false,
       logger: { warn },
-      selectedSound: "bundled:ping-failure.wav",
+      selectedSound: "ping-failure.wav",
       soundExists: true,
       volume: 0.5,
     });
@@ -152,7 +142,7 @@ describe("playNotification", () => {
 });
 
 describe("handleNotificationEvent", () => {
-  it("plays custom sounds through the real backend sound route", async () => {
+  it("plays flat sound ids through the real backend sound route", async () => {
     const play = vi.fn().mockResolvedValue(undefined);
     const audio = {
       currentTime: 0,
@@ -163,7 +153,34 @@ describe("handleNotificationEvent", () => {
     const createAudio = vi.fn(() => audio);
 
     const result = await handleNotificationEvent({
-      catalog: [{ name: "uploaded.wav", source: "custom" }],
+      catalog: [{ name: "uploaded.wav" }],
+      createAudio,
+      detail: {
+        event_kind: "global",
+        sound_id: "uploaded.wav",
+        source: "queue_drained",
+        status: "success",
+        volume: 0.8,
+      },
+    });
+
+    expect(createAudio).toHaveBeenCalledWith("/comfyui-ping/sounds/uploaded.wav");
+    expect(play).toHaveBeenCalledTimes(1);
+    expect(result.played).toBe(true);
+  });
+
+  it("normalizes legacy prefixed sound ids before playback", async () => {
+    const play = vi.fn().mockResolvedValue(undefined);
+    const audio = {
+      currentTime: 0,
+      pause: vi.fn(),
+      play,
+      volume: 0,
+    };
+    const createAudio = vi.fn(() => audio);
+
+    const result = await handleNotificationEvent({
+      catalog: [{ name: "uploaded.wav" }],
       createAudio,
       detail: {
         event_kind: "global",
@@ -174,23 +191,21 @@ describe("handleNotificationEvent", () => {
       },
     });
 
-    expect(createAudio).toHaveBeenCalledWith(
-      "/comfyui-ping/sounds/custom/uploaded.wav"
-    );
+    expect(createAudio).toHaveBeenCalledWith("/comfyui-ping/sounds/uploaded.wav");
     expect(play).toHaveBeenCalledTimes(1);
     expect(result.played).toBe(true);
   });
 
-  it("warns and stays silent for custom sounds when the catalog is empty", async () => {
+  it("warns and stays silent when the selected sound is not in the catalog", async () => {
     const warn = vi.fn();
     const createAudio = vi.fn();
 
     const result = await handleNotificationEvent({
-      catalog: [],
+      catalog: [{ name: "ping-success.wav" }],
       createAudio,
       detail: {
         event_kind: "global",
-        sound_id: "custom:uploaded.wav",
+        sound_id: "uploaded.wav",
         source: "queue_drained",
         status: "success",
         volume: 0.8,
@@ -199,38 +214,7 @@ describe("handleNotificationEvent", () => {
     });
 
     expect(createAudio).not.toHaveBeenCalled();
-    expect(warn).toHaveBeenCalledWith(
-      expect.stringContaining("custom sound")
-    );
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("Selected sound"));
     expect(result.played).toBe(false);
-  });
-
-  it("still plays bundled sounds when the catalog is empty", async () => {
-    const play = vi.fn().mockResolvedValue(undefined);
-    const audio = {
-      currentTime: 0,
-      pause: vi.fn(),
-      play,
-      volume: 0,
-    };
-    const createAudio = vi.fn(() => audio);
-
-    const result = await handleNotificationEvent({
-      catalog: [],
-      createAudio,
-      detail: {
-        event_kind: "global",
-        sound_id: "bundled:ping-success.wav",
-        source: "queue_drained",
-        status: "success",
-        volume: 0.8,
-      },
-    });
-
-    expect(createAudio).toHaveBeenCalledWith(
-      "/comfyui-ping/sounds/bundled/ping-success.wav"
-    );
-    expect(play).toHaveBeenCalledTimes(1);
-    expect(result.played).toBe(true);
   });
 });

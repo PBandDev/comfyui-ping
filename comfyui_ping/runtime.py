@@ -19,8 +19,8 @@ DEFAULT_RUNTIME_SETTINGS: RuntimeSettings = {
     "notify_mode": "queue_drained",
     "success_enabled": True,
     "failure_enabled": True,
-    "success_sound": "bundled:ping-success.wav",
-    "failure_sound": "bundled:ping-failure.wav",
+    "success_sound": "ping-success.wav",
+    "failure_sound": "ping-failure.wav",
     "volume": 0.8,
 }
 

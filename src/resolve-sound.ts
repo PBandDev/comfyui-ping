@@ -1,4 +1,4 @@
-import type { SoundOptionId } from "./api";
+import { normalizeSoundOptionId, type SoundOptionId } from "./api";
 
 type NotificationStatus = "success" | "failure";
 
@@ -17,16 +17,16 @@ export function resolveSoundSelection(
   input: ResolveSoundSelectionInput
 ): SoundOptionId | null {
   if (input.status === "success") {
-    return (
+    return normalizeSoundOptionId(
       input.nodeOverrides?.successSound ??
-      input.globalSettings.successSound ??
-      null
+        input.globalSettings.successSound ??
+        null
     );
   }
 
-  return (
+  return normalizeSoundOptionId(
     input.nodeOverrides?.failureSound ??
-    input.globalSettings.failureSound ??
-    null
+      input.globalSettings.failureSound ??
+      null
   );
 }

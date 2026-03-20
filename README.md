@@ -31,7 +31,7 @@ From there you can:
 - turn notifications on or off
 - choose success and failure sounds
 - preview sounds
-- upload a custom sound
+- upload a sound
 - adjust volume
 - choose whether notifications fire on every prompt or only when the queue finishes
 
@@ -51,7 +51,7 @@ Defaults:
 - success: `ping-success.wav`
 - failure: `ping-failure.wav`
 
-## Custom sounds
+## Uploads
 
 Supported formats:
 
@@ -65,4 +65,6 @@ Maximum upload size:
 
 - `10 MiB`
 
-If a custom sound is missing or unreadable, `comfyui-ping` logs a warning and stays silent.
+If a selected sound is missing or unreadable, `comfyui-ping` logs a warning and stays silent.
+Uploaded sounds are stored alongside the bundled sounds in `sounds/`.
+Older installs with `sounds/bundled`, `sounds/custom`, or `input/ping` are migrated into `sounds/` automatically.

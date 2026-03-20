@@ -130,5 +130,5 @@ def test_ping_node_execute_emits_runtime_notification_when_enabled():
         assert output is not None
         assert len(emitted_payloads) == 1
         assert emitted_payloads[0].status == "success"
-        assert emitted_payloads[0].sound_id == "bundled:ding.wav"
+        assert emitted_payloads[0].sound_id == "ding.wav"
         assert emitted_payloads[0].volume == 0.35
