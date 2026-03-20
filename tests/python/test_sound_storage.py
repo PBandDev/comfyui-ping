@@ -12,15 +12,12 @@ from comfyui_ping.sounds import (
 )
 
 
-def test_list_sounds_returns_bundled_and_custom_entries():
-    sounds = list_available_sounds(
-        bundled=["ping-success.wav"],
-        custom=["my.wav"],
-    )
+def test_list_sounds_returns_flat_entries():
+    sounds = list_available_sounds(["ping-success.wav", "my.wav"])
 
     assert sounds == [
-        {"name": "ping-success.wav", "source": "bundled"},
-        {"name": "my.wav", "source": "custom"},
+        {"name": "ping-success.wav"},
+        {"name": "my.wav"},
     ]
 
 
@@ -35,21 +32,18 @@ def test_accepts_expected_audio_extensions():
 
 
 def test_bundled_sound_files_exist():
-    assert (REPO_ROOT / "sounds" / "bundled" / "ping-success.wav").exists()
-    assert (REPO_ROOT / "sounds" / "bundled" / "ping-failure.wav").exists()
-    assert (REPO_ROOT / "sounds" / "bundled" / "ping-ringtone.wav").exists()
-    assert (REPO_ROOT / "sounds" / "bundled" / "notification-soft.wav").exists()
-    assert (REPO_ROOT / "sounds" / "bundled" / "beep-ping.wav").exists()
-    assert (REPO_ROOT / "sounds" / "bundled" / "harmonic-beep.wav").exists()
+    assert (REPO_ROOT / "sounds" / "ping-success.wav").exists()
+    assert (REPO_ROOT / "sounds" / "ping-failure.wav").exists()
+    assert (REPO_ROOT / "sounds" / "ping-ringtone.wav").exists()
+    assert (REPO_ROOT / "sounds" / "notification-soft.wav").exists()
+    assert (REPO_ROOT / "sounds" / "beep-ping.wav").exists()
+    assert (REPO_ROOT / "sounds" / "harmonic-beep.wav").exists()
 
 
-def test_catalog_preserves_duplicate_names_by_source():
-    sounds = list_available_sounds(
-        bundled=["ping-success.wav"],
-        custom=["ping-success.wav"],
-    )
+def test_catalog_preserves_duplicate_names():
+    sounds = list_available_sounds(["ping-success.wav", "ping-success.wav"])
 
     assert sounds == [
-        {"name": "ping-success.wav", "source": "bundled"},
-        {"name": "ping-success.wav", "source": "custom"},
+        {"name": "ping-success.wav"},
+        {"name": "ping-success.wav"},
     ]

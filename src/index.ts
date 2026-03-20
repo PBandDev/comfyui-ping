@@ -6,6 +6,7 @@ import {
 } from "./audio";
 import {
   fetchSoundCatalog,
+  normalizeSoundOptionId,
   storeRuntimeSettings,
   toSoundOptionId,
   uploadSoundFile,
@@ -83,17 +84,17 @@ interface PingLogger {
   warn: (message: string) => void;
 }
 
-export const DEFAULT_SUCCESS_SOUND_ID = "bundled:ping-success.wav";
-export const DEFAULT_FAILURE_SOUND_ID = "bundled:ping-failure.wav";
+export const DEFAULT_SUCCESS_SOUND_ID = "ping-success.wav";
+export const DEFAULT_FAILURE_SOUND_ID = "ping-failure.wav";
 export const PING_EVENT_NAME = "comfyui-ping.notification";
 const DEFAULT_SOUND_CATALOG: SoundCatalogPayload = {
   sounds: [
-    { name: "beep-ping.wav", source: "bundled" },
-    { name: "harmonic-beep.wav", source: "bundled" },
-    { name: "notification-soft.wav", source: "bundled" },
-    { name: "ping-success.wav", source: "bundled" },
-    { name: "ping-failure.wav", source: "bundled" },
-    { name: "ping-ringtone.wav", source: "bundled" },
+    { name: "beep-ping.wav" },
+    { name: "harmonic-beep.wav" },
+    { name: "notification-soft.wav" },
+    { name: "ping-success.wav" },
+    { name: "ping-failure.wav" },
+    { name: "ping-ringtone.wav" },
   ],
 };
 
@@ -108,7 +109,7 @@ export const PING_SETTINGS_IDS = {
   SUCCESS_SOUND: `${SETTINGS_PREFIX}.Success Sound`,
   FAILURE_SOUND: `${SETTINGS_PREFIX}.Failure Sound`,
   VOLUME: `${SETTINGS_PREFIX}.Notification Volume`,
-  UPLOAD_ACTION: `${SETTINGS_PREFIX}.Upload Custom Sound`,
+  UPLOAD_ACTION: `${SETTINGS_PREFIX}.Upload Sound`,
   SECTION_ADVANCED: `${SETTINGS_PREFIX}.Advanced`,
   DEBUG_LOGGING: SETTINGS_IDS.DEBUG_LOGGING,
 } as const;
@@ -160,7 +161,11 @@ function coerceSettingString(
   value: unknown,
   fallbackValue: SoundOptionId,
 ): string {
-  return typeof value === "string" && value.length > 0 ? value : fallbackValue;
+  if (typeof value !== "string" || value.length === 0) {
+    return fallbackValue;
+  }
+
+  return normalizeSoundOptionId(value) ?? fallbackValue;
 }
 
 function coerceSettingBoolean(value: unknown, fallbackValue: boolean): boolean {
@@ -179,22 +184,17 @@ export function buildSoundSettingOptions(
   catalog: SoundCatalogPayload,
 ): PingSettingOption[] {
   return catalog.sounds.map((entry) => ({
-    text: `${entry.source === "bundled" ? "Bundled" : "Custom"} / ${entry.name}`,
+    text: entry.name,
     value: toSoundOptionId(entry),
   }));
 }
 
 function buildUnavailableSoundOption(soundId: string): PingSettingOption {
-  const separatorIndex = soundId.indexOf(":");
-  const source = separatorIndex === -1 ? "" : soundId.slice(0, separatorIndex);
-  const name =
-    separatorIndex === -1 ? soundId : soundId.slice(separatorIndex + 1);
-  const sourceLabel =
-    source === "custom" ? "Custom" : source === "bundled" ? "Bundled" : "Sound";
+  const name = normalizeSoundOptionId(soundId) ?? soundId;
 
   return {
-    text: `${sourceLabel} / ${name} (unavailable)`,
-    value: soundId,
+    text: `${name} (unavailable)`,
+    value: name,
   };
 }
 
@@ -202,15 +202,16 @@ export function buildRenderedSoundOptions(
   options: PingSettingOption[],
   selectedValue: string,
 ): PingSettingOption[] {
-  if (selectedValue.length === 0) {
+  const normalizedSelectedValue = normalizeSoundOptionId(selectedValue) ?? "";
+  if (normalizedSelectedValue.length === 0) {
     return options;
   }
 
-  if (options.some((option) => option.value === selectedValue)) {
+  if (options.some((option) => option.value === normalizedSelectedValue)) {
     return options;
   }
 
-  return [buildUnavailableSoundOption(selectedValue), ...options];
+  return [buildUnavailableSoundOption(normalizedSelectedValue), ...options];
 }
 
 function findSetting(settingId: string): PingSetting | undefined {
@@ -263,19 +264,23 @@ function populateSoundSelect(
   options: PingSettingOption[],
   selectedValue: string,
 ): void {
-  const renderedOptions = buildRenderedSoundOptions(options, selectedValue);
+  const normalizedSelectedValue = normalizeSoundOptionId(selectedValue) ?? "";
+  const renderedOptions = buildRenderedSoundOptions(
+    options,
+    normalizedSelectedValue,
+  );
   selectEl.replaceChildren();
 
   for (const option of renderedOptions) {
     const optionEl = document.createElement("option");
     optionEl.textContent = option.text;
     optionEl.value = option.value;
-    optionEl.selected = option.value === selectedValue;
+    optionEl.selected = option.value === normalizedSelectedValue;
     selectEl.append(optionEl);
   }
 
-  if (selectedValue.length > 0) {
-    selectEl.value = selectedValue;
+  if (normalizedSelectedValue.length > 0) {
+    selectEl.value = normalizedSelectedValue;
   } else if (selectEl.options.length > 0 && selectEl.selectedIndex === -1) {
     selectEl.value = selectEl.options[0].value;
   }
@@ -484,7 +489,7 @@ export async function tryUploadCustomSound(
     return await uploadCustomSound(comfyApp, file);
   } catch (error) {
     logger.warn(
-      `Unable to upload custom sound: ${
+      `Unable to upload sound: ${
         error instanceof Error ? error.message : String(error)
       }`,
     );
@@ -513,7 +518,7 @@ function createSettingsSyncOnChange(): (
 function createUploadActionRenderer(): HTMLButtonElement {
   const button = document.createElement("button");
   button.type = "button";
-  button.textContent = "Upload Custom Sound";
+  button.textContent = "Upload Sound";
   button.addEventListener("click", () => {
     const runtimeApp = getRuntimeApp();
     if (!runtimeApp?.api) {
@@ -636,10 +641,10 @@ export const PING_SETTINGS: PingSetting[] = [
   },
   {
     id: PING_SETTINGS_IDS.UPLOAD_ACTION,
-    name: "Upload Custom Sound",
+    name: "Upload Sound",
     type: createUploadActionRenderer,
     defaultValue: undefined,
-    tooltip: "Upload a custom browser-played notification sound.",
+    tooltip: "Upload a browser-played notification sound.",
     sortOrder: 2,
   },
   {

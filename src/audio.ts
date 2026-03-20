@@ -20,7 +20,6 @@ export interface NotificationLogger {
 export interface ShouldPlayNotificationInput {
   selectedSound: SoundOptionId | string | null;
   soundExists: boolean;
-  isCustom: boolean;
 }
 
 export interface PlayNotificationInput extends ShouldPlayNotificationInput {
@@ -53,8 +52,7 @@ export function catalogHasSound(
   }
 
   return catalog.some(
-    (catalogEntry) =>
-      catalogEntry.name === entry.name && catalogEntry.source === entry.source
+    (catalogEntry) => catalogEntry.name === entry.name
   );
 }
 
@@ -76,11 +74,7 @@ export function shouldPlayNotification(
     return false;
   }
 
-  if (input.isCustom && !input.soundExists) {
-    return false;
-  }
-
-  return input.soundExists || !input.isCustom;
+  return input.soundExists;
 }
 
 export async function playNotification(
@@ -92,9 +86,9 @@ export async function playNotification(
       input.currentAudio.currentTime = 0;
     }
 
-    if (input.isCustom && input.selectedSound && !input.soundExists) {
+    if (input.selectedSound && !input.soundExists) {
       input.logger?.warn(
-        `Selected custom sound '${input.selectedSound}' is unavailable; skipping playback.`
+        `Selected sound '${input.selectedSound}' is unavailable; skipping playback.`
       );
     }
 
@@ -142,7 +136,6 @@ export async function handleNotificationEvent(input: {
 }): Promise<PlayNotificationResult> {
   const selectedSound = normalizeSoundOptionId(input.detail.sound_id);
   const parsedSound = selectedSound ? parseSoundOptionId(selectedSound) : null;
-  const isCustom = parsedSound?.source === "custom";
   const audioUrl = resolveNotificationAudioUrl(selectedSound);
   const soundExists = parsedSound
     ? catalogHasSound(input.catalog, parsedSound)
@@ -152,7 +145,6 @@ export async function handleNotificationEvent(input: {
     audioUrl,
     createAudio: input.createAudio,
     currentAudio: input.currentAudio,
-    isCustom,
     logger: input.logger,
     selectedSound,
     soundExists,

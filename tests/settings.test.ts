@@ -116,7 +116,7 @@ describe("PING_SETTINGS", () => {
     expect(
       PING_SETTINGS.map((setting) => setting.name)
     ).toEqual([
-      "Version 1.0.1",
+      "Version 1.0.2",
       "Notifications",
       "Enable Workflow Notifications",
       "Global Notify Mode",
@@ -126,7 +126,7 @@ describe("PING_SETTINGS", () => {
       "Success Sound",
       "Failure Sound",
       "Notification Volume",
-      "Upload Custom Sound",
+      "Upload Sound",
       "Advanced",
       "Enable Debug Logging",
     ]);
@@ -167,7 +167,7 @@ describe("PING_SETTINGS", () => {
     );
   });
 
-  it("uses bundled defaults for success and failure sounds", () => {
+  it("uses flat filename defaults for success and failure sounds", () => {
     const successSetting = PING_SETTINGS.find(
       (setting) => setting.id === PING_SETTINGS_IDS.SUCCESS_SOUND
     );
@@ -179,11 +179,11 @@ describe("PING_SETTINGS", () => {
     expect(failureSetting?.defaultValue).toBe(DEFAULT_FAILURE_SOUND_ID);
   });
 
-  it("applies source-aware catalog options to both sound settings", () => {
+  it("applies flat catalog options to both sound settings", () => {
     applySoundCatalogToSettings({
       sounds: [
-        { name: "ping-success.wav", source: "bundled" },
-        { name: "uploaded.wav", source: "custom" },
+        { name: "ping-success.wav" },
+        { name: "uploaded.wav" },
       ],
     });
 
@@ -195,27 +195,27 @@ describe("PING_SETTINGS", () => {
     );
 
     expect(successSetting?.options).toEqual([
-      { text: "Bundled / ping-success.wav", value: "bundled:ping-success.wav" },
-      { text: "Custom / uploaded.wav", value: "custom:uploaded.wav" },
+      { text: "ping-success.wav", value: "ping-success.wav" },
+      { text: "uploaded.wav", value: "uploaded.wav" },
     ]);
     expect(failureSetting?.options).toEqual([
-      { text: "Bundled / ping-success.wav", value: "bundled:ping-success.wav" },
-      { text: "Custom / uploaded.wav", value: "custom:uploaded.wav" },
+      { text: "ping-success.wav", value: "ping-success.wav" },
+      { text: "uploaded.wav", value: "uploaded.wav" },
     ]);
   });
 
-  it("preserves a persisted custom selection while the live catalog is still loading", () => {
+  it("preserves a persisted legacy selection while the live catalog is still loading", () => {
     expect(
       buildRenderedSoundOptions(
-        [{ text: "Bundled / ping-success.wav", value: "bundled:ping-success.wav" }],
+        [{ text: "ping-success.wav", value: "ping-success.wav" }],
         "custom:uploaded.wav"
       )
     ).toEqual([
       {
-        text: "Custom / uploaded.wav (unavailable)",
-        value: "custom:uploaded.wav",
+        text: "uploaded.wav (unavailable)",
+        value: "uploaded.wav",
       },
-      { text: "Bundled / ping-success.wav", value: "bundled:ping-success.wav" },
+      { text: "ping-success.wav", value: "ping-success.wav" },
     ]);
   });
 
@@ -223,7 +223,7 @@ describe("PING_SETTINGS", () => {
     const fetchApi = vi.fn(async () =>
       new Response(
         JSON.stringify({
-          sounds: [{ name: "uploaded.wav", source: "custom" }],
+          sounds: [{ name: "uploaded.wav" }],
         }),
         {
           status: 200,
@@ -240,7 +240,7 @@ describe("PING_SETTINGS", () => {
         },
       })
     ).resolves.toEqual({
-      sounds: [{ name: "uploaded.wav", source: "custom" }],
+      sounds: [{ name: "uploaded.wav" }],
     });
     expect(fetchApi).toHaveBeenCalledWith("/comfyui-ping/sounds", undefined);
   });
@@ -292,10 +292,10 @@ describe("PING_SETTINGS", () => {
     ).resolves.toEqual({
       enabled: false,
       failure_enabled: false,
-      failure_sound: "bundled:ping-failure.wav",
+      failure_sound: "ping-failure.wav",
       notify_mode: "every_prompt",
       success_enabled: true,
-      success_sound: "custom:uploaded.wav",
+      success_sound: "uploaded.wav",
       volume: 0.35,
     });
 
@@ -312,7 +312,7 @@ describe("PING_SETTINGS", () => {
     const fetchApi = vi.fn(async () =>
       new Response(
         JSON.stringify({
-          error: "Filename already exists in custom sounds",
+          error: "Filename already exists",
         }),
         {
           status: 400,
@@ -334,9 +334,7 @@ describe("PING_SETTINGS", () => {
       )
     ).resolves.toBeNull();
 
-    expect(warn).toHaveBeenCalledWith(
-      expect.stringContaining("Unable to upload custom sound")
-    );
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("Unable to upload sound"));
     expect(fetchApi).toHaveBeenCalledWith(
       "/comfyui-ping/sounds/upload",
       expect.objectContaining({
@@ -345,7 +343,7 @@ describe("PING_SETTINGS", () => {
     );
   });
 
-  it("syncs runtime settings when the custom success sound renderer changes", async () => {
+  it("syncs runtime settings when the success sound renderer changes", async () => {
     let successSoundValue = DEFAULT_SUCCESS_SOUND_ID;
     const fetchApi = vi.fn(
       async (_route: string, options?: RequestInit): Promise<Response> =>
@@ -401,7 +399,7 @@ describe("PING_SETTINGS", () => {
       throw new Error("Expected the renderer to return a select element");
     }
 
-    selectEl.value = "bundled:ping-failure.wav";
+    selectEl.value = "ping-failure.wav";
     selectEl.dispatchEvent(new Event("change"));
     await Promise.resolve();
 
@@ -450,8 +448,8 @@ describe("PING_SETTINGS", () => {
 
     applySoundCatalogToSettings({
       sounds: [
-        { name: "ping-success.wav", source: "bundled" },
-        { name: "uploaded.wav", source: "custom" },
+        { name: "ping-success.wav" },
+        { name: "uploaded.wav" },
       ],
     });
 
@@ -480,7 +478,7 @@ describe("PING_SETTINGS", () => {
     await Promise.resolve();
 
     expect(FakeAudio.created).toHaveLength(1);
-    expect(FakeAudio.created[0]?.src).toBe("/comfyui-ping/sounds/custom/uploaded.wav");
+    expect(FakeAudio.created[0]?.src).toBe("/comfyui-ping/sounds/uploaded.wav");
     expect(FakeAudio.created[0]?.volume).toBe(0.35);
     expect(FakeAudio.created[0]?.play).toHaveBeenCalledTimes(1);
 
@@ -490,13 +488,14 @@ describe("PING_SETTINGS", () => {
   it("subscribes to ping notification events", async () => {
     const addEventListener = vi.fn();
 
+    vi.stubGlobal("document", new FakeDocument());
     vi.stubGlobal("app", {
       api: {
         addEventListener,
         fetchApi: vi.fn(async () =>
           new Response(
             JSON.stringify({
-              sounds: [{ name: "ping-success.wav", source: "bundled" }],
+              sounds: [{ name: "ping-success.wav" }],
             }),
             {
               status: 200,
@@ -578,7 +577,7 @@ describe("PING_SETTINGS", () => {
     expect(event?.type).toBe(PING_EVENT_NAME);
     expect(event?.detail).toEqual({
       event_kind: "queue_error",
-      sound_id: "bundled:ping-failure.wav",
+      sound_id: "ping-failure.wav",
       source: "prompt_no_outputs",
       status: "failure",
       volume: 0.45,

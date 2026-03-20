@@ -33,8 +33,8 @@ def normalize_sound_id(sound_id: str | None) -> str | None:
     if sound_id is None or sound_id == "":
         return None
     if sound_id.startswith(SOUND_PREFIXES):
-        return sound_id
-    return f"bundled:{sound_id}"
+        return sound_id.split(":", 1)[1]
+    return sound_id
 
 
 def build_notification_payload(

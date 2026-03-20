@@ -18,7 +18,7 @@ def test_notification_payload_includes_status_and_sound_id():
     )
 
     assert payload.status == "failure"
-    assert payload.sound_id == "bundled:buzz.wav"
+    assert payload.sound_id == "buzz.wav"
     assert payload.volume == 0.8
     assert payload.source == "global"
 
@@ -31,7 +31,7 @@ def test_notification_policy_prefers_node_override():
         node_overrides={"success_sound": "node-success.wav"},
     )
 
-    assert payload.sound_id == "bundled:node-success.wav"
+    assert payload.sound_id == "node-success.wav"
 
 
 def test_invalid_custom_sound_does_not_fallback():
@@ -52,11 +52,11 @@ def test_resolve_sound_id_uses_global_value_without_override():
             global_settings={"failure_sound": "global-failure.wav"},
             node_overrides=None,
         )
-        == "bundled:global-failure.wav"
+        == "global-failure.wav"
     )
 
 
-def test_notification_policy_preserves_source_aware_sound_id():
+def test_notification_policy_normalizes_legacy_prefixed_sound_id():
     payload = build_notification_payload(
         event_kind="node",
         status="failure",
@@ -64,4 +64,4 @@ def test_notification_policy_preserves_source_aware_sound_id():
         node_overrides={"failure_sound": "custom:alert.wav"},
     )
 
-    assert payload.sound_id == "custom:alert.wav"
+    assert payload.sound_id == "alert.wav"

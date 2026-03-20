@@ -1,22 +1,16 @@
-import { SOUND_SOURCES } from "./constants";
-
-export type SoundSource =
-  (typeof SOUND_SOURCES)[keyof typeof SOUND_SOURCES];
-
 export interface FetchApiClient {
   fetchApi: (route: string, options?: RequestInit) => Promise<Response>;
 }
 
 export interface SoundCatalogEntry {
   name: string;
-  source: SoundSource;
 }
 
 export interface SoundCatalogPayload {
   sounds: SoundCatalogEntry[];
 }
 
-export type SoundOptionId = `${SoundSource}:${string}`;
+export type SoundOptionId = string;
 export interface RuntimeNotificationSettings {
   enabled: boolean;
   notify_mode: "every_prompt" | "queue_drained";
@@ -32,7 +26,7 @@ export const SOUND_UPLOAD_ROUTE = "/comfyui-ping/sounds/upload";
 export const SETTINGS_ROUTE = "/comfyui-ping/settings";
 
 export function toSoundOptionId(entry: SoundCatalogEntry): SoundOptionId {
-  return `${entry.source}:${entry.name}`;
+  return entry.name;
 }
 
 export function normalizeSoundOptionId(
@@ -42,28 +36,21 @@ export function normalizeSoundOptionId(
     return null;
   }
 
-  if (soundId.includes(":")) {
-    return toSoundOptionId(parseSoundOptionId(soundId));
+  if (soundId.startsWith("bundled:") || soundId.startsWith("custom:")) {
+    return soundId.split(":")[1] ?? null;
   }
 
-  return `bundled:${soundId}`;
+  return soundId;
 }
 
 export function parseSoundOptionId(soundId: string): SoundCatalogEntry {
-  const separatorIndex = soundId.indexOf(":");
-  const source = soundId.slice(0, separatorIndex);
-  const name = soundId.slice(separatorIndex + 1);
-
-  if (
-    source !== SOUND_SOURCES.BUNDLED &&
-    source !== SOUND_SOURCES.CUSTOM
-  ) {
-    throw new Error(`Unsupported sound source: ${source}`);
+  const normalizedSoundId = normalizeSoundOptionId(soundId);
+  if (!normalizedSoundId) {
+    throw new Error("Missing sound option id");
   }
 
   return {
-    name,
-    source,
+    name: normalizedSoundId,
   };
 }
 
@@ -80,31 +67,25 @@ export function buildSettingsRoute(): string {
 }
 
 export function buildSoundFileRoute(entry: SoundCatalogEntry): string {
-  return `${SOUND_CATALOG_ROUTE}/${encodeURIComponent(entry.source)}/${encodeURIComponent(entry.name)}`;
+  return `${SOUND_CATALOG_ROUTE}/${encodeURIComponent(entry.name)}`;
 }
 
 export function parseSoundCatalogPayload(input: {
   sounds?: Array<{
     name?: string;
-    source?: string;
   }>;
 }): SoundCatalogPayload {
   const sounds = input.sounds ?? [];
 
   return {
     sounds: sounds.flatMap((entry) => {
-      if (
-        typeof entry.name !== "string" ||
-        (entry.source !== SOUND_SOURCES.BUNDLED &&
-          entry.source !== SOUND_SOURCES.CUSTOM)
-      ) {
+      if (typeof entry.name !== "string") {
         return [];
       }
 
       return [
         {
           name: entry.name,
-          source: entry.source,
         },
       ];
     }),
@@ -121,7 +102,6 @@ async function parseCatalogResponse(
   const payload: {
     sounds?: Array<{
       name?: string;
-      source?: string;
     }>;
   } = await response.json();
 
